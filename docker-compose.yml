@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DATABASE_URL=sqlite:///./data/app.db
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:-}
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:-}
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:

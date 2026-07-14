@@ -1,0 +1,50 @@
+# Render Blueprint — deploys both services from this monorepo.
+# Push this repo to GitHub/GitLab/Bitbucket, then in Render:
+# New -> Blueprint -> select this repo -> Apply.
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: ai-bi-platform-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false  # optional — set manually in the Render dashboard
+      - key: DATABASE_URL
+        # IMPORTANT: free-tier Render services can't have a persistent disk
+        # attached (that requires a paid Starter plan or higher), so SQLite
+        # data here is EPHEMERAL — it's wiped on every redeploy and whenever
+        # the free service spins down from inactivity and back up. For real
+        # persistence on the free tier, point this at Supabase Postgres
+        # instead (Supabase dashboard -> Project Settings -> Database ->
+        # Connection string -> URI, "Transaction pooler", port 6543).
+        value: sqlite:///./data/app.db
+      - key: CORS_ORIGINS
+        value: https://ai-bi-platform-frontend.onrender.com
+      - key: SUPABASE_URL
+        sync: false  # optional — set to enable auth, e.g. https://xxxx.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false  # optional — the sb_publishable_... key from Supabase, not the secret key
+
+  - type: web
+    name: ai-bi-platform-frontend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      # Read at container STARTUP by nginx's built-in envsubst templating
+      # (see frontend/nginx.conf.template and frontend/Dockerfile) — Render's
+      # Blueprint spec has no field for passing Docker build-time arguments,
+      # so this can't be a build-time value the way a Vite env var normally
+      # would be. Fill in the backend's real onrender.com URL after its
+      # first deploy (same as CORS_ORIGINS above).
+      - key: BACKEND_URL
+        value: https://ai-bi-platform-backend.onrender.com
+      - key: SUPABASE_URL
+        sync: false  # optional — set to enable login on the frontend, same value as the backend's
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false  # optional — the sb_publishable_... key, same value as the backend's

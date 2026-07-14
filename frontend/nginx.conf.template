@@ -1,0 +1,42 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # BACKEND_URL is substituted at container STARTUP (not build time) by
+    # nginx's built-in envsubst templating feature, since Render's Docker
+    # build doesn't support passing build-time arguments through render.yaml.
+    # Defaults to the docker-compose service name if unset (see Dockerfile).
+    location /api/ {
+        proxy_pass ${BACKEND_URL}/api/;
+
+        # Required when BACKEND_URL is https:// (e.g. on Render). Without
+        # this, nginx doesn't send SNI during the TLS handshake to the
+        # upstream, and Render's edge can't tell which certificate/service
+        # to present — the handshake fails outright (TLS alert 40) and every
+        # request comes back as a 502. Harmless no-op for the plain-http
+        # docker-compose case (http://backend:8000).
+        proxy_ssl_server_name on;
+
+        # $proxy_host is nginx's own variable for "the hostname from the
+        # proxy_pass target" (i.e. the backend's hostname). The previous
+        # version of this file used $host here, which is the ORIGINAL
+        # request's Host header (the frontend's hostname) — wrong target
+        # for reaching the backend, and part of the same underlying bug.
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
